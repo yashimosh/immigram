@@ -1,0 +1,14 @@
+services:
+  immigram:
+    build: .
+    container_name: immigram
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    env_file: .env.local
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.immigram.rule=Host(`immigram.yashimosh.com`)"
+      - "traefik.http.routers.immigram.entrypoints=websecure"
+      - "traefik.http.routers.immigram.tls.certresolver=letsencrypt"
+      - "traefik.http.services.immigram.loadbalancer.server.port=3003"
