@@ -544,14 +544,31 @@ async function main() {
     END $$;
   `, "imm_triggers");
 
-  // 16. Auth trigger — use DIFFERENT name from existing on_auth_user_created
+  // 16. Auth trigger — extract metadata, create user + profile
   await runSQL(`
     CREATE OR REPLACE FUNCTION imm_handle_new_user()
     RETURNS TRIGGER AS $$
+    DECLARE
+      _role TEXT;
+      _first_name TEXT;
+      _last_name TEXT;
     BEGIN
-      INSERT INTO public.imm_users (id, email)
-      VALUES (NEW.id, NEW.email)
+      _role := COALESCE(NEW.raw_user_meta_data->>'role', 'applicant');
+      _first_name := COALESCE(NEW.raw_user_meta_data->>'first_name', '');
+      _last_name := COALESCE(NEW.raw_user_meta_data->>'last_name', '');
+
+      IF _role NOT IN ('applicant', 'consultant', 'admin') THEN
+        _role := 'applicant';
+      END IF;
+
+      INSERT INTO public.imm_users (id, email, role)
+      VALUES (NEW.id, NEW.email, _role)
       ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO public.imm_profiles (user_id, first_name, last_name)
+      VALUES (NEW.id, _first_name, _last_name)
+      ON CONFLICT (user_id) DO NOTHING;
+
       RETURN NEW;
     END;
     $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -564,6 +581,69 @@ async function main() {
       END IF;
     END $$;
   `, "imm_auth_trigger");
+
+  // 17. Storage bucket for documents
+  await runSQL(`
+    INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    VALUES (
+      'documents',
+      'documents',
+      FALSE,
+      52428800,
+      ARRAY[
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain'
+      ]
+    )
+    ON CONFLICT (id) DO NOTHING;
+  `, "documents_storage_bucket");
+
+  // 18. Storage RLS policies
+  await runSQL(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='objects' AND policyname='Users can upload own documents') THEN
+        CREATE POLICY "Users can upload own documents"
+        ON storage.objects FOR INSERT
+        WITH CHECK (
+          bucket_id = 'documents'
+          AND auth.uid()::text = (storage.foldername(name))[1]
+        );
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='objects' AND policyname='Users can view own documents') THEN
+        CREATE POLICY "Users can view own documents"
+        ON storage.objects FOR SELECT
+        USING (
+          bucket_id = 'documents'
+          AND auth.uid()::text = (storage.foldername(name))[1]
+        );
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='objects' AND policyname='Users can update own documents') THEN
+        CREATE POLICY "Users can update own documents"
+        ON storage.objects FOR UPDATE
+        USING (
+          bucket_id = 'documents'
+          AND auth.uid()::text = (storage.foldername(name))[1]
+        );
+      END IF;
+
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='objects' AND policyname='Users can delete own documents') THEN
+        CREATE POLICY "Users can delete own documents"
+        ON storage.objects FOR DELETE
+        USING (
+          bucket_id = 'documents'
+          AND auth.uid()::text = (storage.foldername(name))[1]
+        );
+      END IF;
+    END $$;
+  `, "documents_storage_policies");
 
   console.log("\n=== Migration complete! ===");
 }
