@@ -10,6 +10,7 @@ import {
   Pin,
 } from "lucide-react";
 import { CommentSection } from "./comment-section";
+import { VoteButton } from "./vote-button";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -42,6 +43,9 @@ export default async function CommunityPostPage({
 
   if (error || !post) notFound();
 
+  // Increment view count (fire-and-forget)
+  supabase.rpc("imm_increment_views", { post_id: id }).then(() => {});
+
   const { data: comments } = await supabase
     .from("imm_community_comments")
     .select(
@@ -49,6 +53,29 @@ export default async function CommunityPostPage({
     )
     .eq("post_id", id)
     .order("created_at", { ascending: true });
+
+  // Fetch user's votes for this post and its comments
+  let userPostVote: "up" | "down" | null = null;
+  const userCommentVotes: Record<string, "up" | "down"> = {};
+
+  if (user) {
+    const { data: votes } = await supabase
+      .from("imm_community_votes")
+      .select("post_id, comment_id, vote_type")
+      .eq("user_id", user.id)
+      .or(`post_id.eq.${id},comment_id.in.(${(comments ?? []).map((c) => c.id).join(",")})`);
+
+    if (votes) {
+      for (const v of votes) {
+        if (v.post_id === id && !v.comment_id) {
+          userPostVote = v.vote_type as "up" | "down";
+        }
+        if (v.comment_id) {
+          userCommentVotes[v.comment_id] = v.vote_type as "up" | "down";
+        }
+      }
+    }
+  }
 
   const categoryColors: Record<string, string> = {
     question: "bg-blue-400/10 text-blue-400",
@@ -130,9 +157,11 @@ export default async function CommunityPostPage({
 
         {/* Stats */}
         <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <ThumbsUp className="h-3.5 w-3.5" /> {post.upvotes_count} upvotes
-          </span>
+          <VoteButton
+            postId={id}
+            currentVote={userPostVote}
+            upvotes={post.upvotes_count}
+          />
           <span className="flex items-center gap-1">
             <MessageCircle className="h-3.5 w-3.5" /> {post.comments_count}{" "}
             comments
@@ -150,6 +179,7 @@ export default async function CommunityPostPage({
         isAuthor={isAuthor}
         isQuestion={isQuestion}
         currentUserId={user?.id ?? null}
+        userCommentVotes={userCommentVotes}
       />
     </div>
   );

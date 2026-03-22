@@ -7,11 +7,11 @@ import type { CommunityComment } from "@/lib/types";
 import {
   Send,
   Loader2,
-  ThumbsUp,
   CheckCircle2,
   Reply,
   MessageCircle,
 } from "lucide-react";
+import { VoteButton } from "./vote-button";
 
 interface CommentWithAuthor extends CommunityComment {
   profiles: { first_name: string; last_name: string; avatar_url: string | null } | null;
@@ -23,12 +23,14 @@ export function CommentSection({
   isAuthor,
   isQuestion,
   currentUserId,
+  userCommentVotes,
 }: {
   postId: string;
   comments: CommentWithAuthor[];
   isAuthor: boolean;
   isQuestion: boolean;
   currentUserId: string | null;
+  userCommentVotes?: Record<string, "up" | "down">;
 }) {
   const router = useRouter();
   const [content, setContent] = useState("");
@@ -115,9 +117,11 @@ export function CommentSection({
               <span>
                 {new Date(comment.created_at).toLocaleDateString()}
               </span>
-              <span className="flex items-center gap-1">
-                <ThumbsUp className="h-3 w-3" /> {comment.upvotes_count}
-              </span>
+              <VoteButton
+                commentId={comment.id}
+                currentVote={userCommentVotes?.[comment.id] ?? null}
+                upvotes={comment.upvotes_count}
+              />
             </div>
 
             <div className="flex items-center gap-2">

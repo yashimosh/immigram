@@ -17,17 +17,24 @@ export default async function AppLayout({
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("imm_profiles")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
-
-  const { data: userData } = await supabase
-    .from("imm_users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  const [{ data: profile }, { data: userData }, { count: unreadCount }] =
+    await Promise.all([
+      supabase
+        .from("imm_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single(),
+      supabase
+        .from("imm_users")
+        .select("role")
+        .eq("id", user.id)
+        .single(),
+      supabase
+        .from("imm_notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false),
+    ]);
 
   const appUser: AppUser = {
     id: user.id,
@@ -38,5 +45,9 @@ export default async function AppLayout({
     avatarUrl: profile?.avatar_url ?? null,
   };
 
-  return <AppShell user={appUser}>{children}</AppShell>;
+  return (
+    <AppShell user={appUser} unreadNotifications={unreadCount ?? 0}>
+      {children}
+    </AppShell>
+  );
 }

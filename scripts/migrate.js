@@ -645,6 +645,53 @@ async function main() {
     END $$;
   `, "documents_storage_policies");
 
+  // 19. RPC to increment post view count
+  await runSQL(`
+    CREATE OR REPLACE FUNCTION imm_increment_views(post_id UUID)
+    RETURNS VOID AS $$
+    BEGIN
+      UPDATE imm_community_posts
+      SET views_count = views_count + 1
+      WHERE id = post_id;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+  `, "imm_increment_views_rpc");
+
+  // 20. Trigger to auto-update comments_count on imm_community_posts
+  await runSQL(`
+    CREATE OR REPLACE FUNCTION imm_update_comments_count()
+    RETURNS TRIGGER AS $$
+    DECLARE
+      _post_id UUID;
+    BEGIN
+      IF TG_OP = 'DELETE' THEN
+        _post_id := OLD.post_id;
+      ELSE
+        _post_id := NEW.post_id;
+      END IF;
+
+      UPDATE imm_community_posts
+      SET comments_count = (
+        SELECT COUNT(*) FROM imm_community_comments WHERE post_id = _post_id
+      )
+      WHERE id = _post_id;
+
+      IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'imm_on_comment_change') THEN
+        CREATE TRIGGER imm_on_comment_change
+          AFTER INSERT OR DELETE ON imm_community_comments
+          FOR EACH ROW EXECUTE FUNCTION imm_update_comments_count();
+      END IF;
+    END $$;
+  `, "imm_comments_count_trigger");
+
   console.log("\n=== Migration complete! ===");
 }
 

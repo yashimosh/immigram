@@ -38,9 +38,11 @@ const iconMap: Record<string, React.ElementType> = {
 export function AppShell({
   user,
   children,
+  unreadNotifications = 0,
 }: {
   user: AppUser;
   children: React.ReactNode;
+  unreadNotifications?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -165,10 +167,17 @@ export function AppShell({
 
           <div className="flex-1" />
 
-          <button className="relative text-muted-foreground hover:text-foreground transition-colors">
+          <Link
+            href="/settings/notifications"
+            className="relative text-muted-foreground hover:text-foreground transition-colors"
+          >
             <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary pulse-notification" />
-          </button>
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground px-1">
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </span>
+            )}
+          </Link>
         </header>
 
         {/* Page content */}
