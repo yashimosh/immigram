@@ -1,19 +1,25 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
-let clientInstance: Anthropic | null = null;
+let clientInstance: OpenAI | null = null;
 
-export function getAnthropicClient(): Anthropic {
+export function getAIClient(): OpenAI {
   if (!clientInstance) {
-    clientInstance = new Anthropic();
+    clientInstance = new OpenAI({
+      baseURL: process.env.AI_BASE_URL,
+      apiKey: process.env.AI_API_KEY,
+    });
   }
   return clientInstance;
 }
 
-/** Fast model — low latency, good for chat and simple tasks. */
-export const MODEL_FAST = "claude-haiku-4-5-20250414";
+/** Fast model — Groq free tier, good for chat and simple tasks. */
+export const MODEL_FAST = "llama-3.3-70b";
 
-/** Smart model — higher quality, used for analysis and complex reasoning. */
-export const MODEL_SMART = "claude-sonnet-4-20250514";
+/** Smart model — Anthropic Claude, for complex legal/analysis. */
+export const MODEL_SMART = "claude-sonnet";
+
+/** Multilingual model — best for Persian/Kurdish/Arabic documents. */
+export const MODEL_MULTILINGUAL = "qwen3.5:4b";
 
 /** Default max tokens for completions. */
 export const DEFAULT_MAX_TOKENS = 4096;
@@ -33,16 +39,17 @@ export async function getCompletion({
   maxTokens = DEFAULT_MAX_TOKENS,
   temperature,
 }: CompletionOptions): Promise<string> {
-  const client = getAnthropicClient();
+  const client = getAIClient();
 
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model,
     max_tokens: maxTokens,
     ...(temperature !== undefined && { temperature }),
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock?.text ?? "";
+  return response.choices[0]?.message?.content ?? "";
 }

@@ -1,12 +1,12 @@
 # Immigram
 
-AI-powered immigration platform built with Next.js 16, Supabase, and Anthropic Claude.
+AI-powered immigration platform built with Next.js 16, Supabase, and LiteLLM AI proxy.
 
 ## Stack
 
 - **Framework**: Next.js 16 (App Router)
 - **Database**: Supabase (PostgreSQL + Auth)
-- **AI**: Anthropic Claude SDK
+- **AI**: LiteLLM proxy (OpenAI SDK) → llama-3.3-70b (Groq), qwen3.5:4b (Ollama), claude-sonnet (Anthropic)
 - **Styling**: Tailwind CSS v4 with dark glassmorphism theme
 - **Deployment**: Docker + Traefik reverse proxy
 

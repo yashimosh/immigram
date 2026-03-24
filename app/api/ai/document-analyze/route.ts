@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropicClient, MODEL_SMART } from "@/lib/ai/client";
+import { getAIClient, MODEL_MULTILINGUAL, MODEL_FAST } from "@/lib/ai/client";
 import { DOCUMENT_ANALYSIS_SYSTEM_PROMPT } from "@/lib/ai/prompts/document-analysis";
 
 export async function POST(request: NextRequest) {
@@ -39,59 +39,60 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to download document" }, { status: 500 });
   }
 
-  const client = getAnthropicClient();
+  const client = getAIClient();
 
   try {
     const isImage = ["image/jpeg", "image/png", "image/gif", "image/webp"].some(
       (t) => doc.file_type.includes(t) || doc.file_name.match(/\.(jpg|jpeg|png|gif|webp)$/i),
     );
 
-    let response;
+    let messages: { role: "system" | "user"; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }[];
 
     if (isImage) {
-      // Use vision for images
+      // Use vision for images — qwen3.5:4b supports vision + multilingual
       const buffer = await fileData.arrayBuffer();
       const base64 = Buffer.from(buffer).toString("base64");
       const mediaType = doc.file_type.includes("png") ? "image/png" : "image/jpeg";
 
-      response = await client.messages.create({
-        model: MODEL_SMART,
-        max_tokens: 2048,
-        system: DOCUMENT_ANALYSIS_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", media_type: mediaType, data: base64 },
-              },
-              {
-                type: "text",
-                text: `Analyze this immigration document. The file is named "${doc.file_name}" and categorized as "${doc.category}".`,
-              },
-            ],
-          },
-        ],
-      });
+      messages = [
+        { role: "system", content: DOCUMENT_ANALYSIS_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: { url: `data:${mediaType};base64,${base64}` },
+            },
+            {
+              type: "text",
+              text: `Analyze this immigration document. The file is named "${doc.file_name}" and categorized as "${doc.category}".`,
+            },
+          ],
+        },
+      ];
     } else {
       // For PDFs and other text docs, extract text
       const text = await fileData.text();
-      response = await client.messages.create({
-        model: MODEL_SMART,
-        max_tokens: 2048,
-        system: DOCUMENT_ANALYSIS_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: `Analyze this immigration document. The file is named "${doc.file_name}" and categorized as "${doc.category}".\n\nDocument content:\n${text.slice(0, 10000)}`,
-          },
-        ],
-      });
+      messages = [
+        { role: "system", content: DOCUMENT_ANALYSIS_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Analyze this immigration document. The file is named "${doc.file_name}" and categorized as "${doc.category}".\n\nDocument content:\n${text.slice(0, 10000)}`,
+        },
+      ];
     }
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    const resultText = textBlock?.text ?? "";
+    // Use multilingual model for document analysis (handles Persian/Arabic/Kurdish)
+    // Fall back to fast model for English-only docs
+    const model = isImage ? MODEL_MULTILINGUAL : MODEL_FAST;
+
+    const response = await client.chat.completions.create({
+      model,
+      max_tokens: 2048,
+      messages: messages as Parameters<typeof client.chat.completions.create>[0]["messages"],
+    });
+
+    const resultText = response.choices[0]?.message?.content ?? "";
 
     // Parse JSON
     const jsonMatch = resultText.match(/\{[\s\S]*\}/);

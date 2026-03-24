@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropicClient, MODEL_SMART } from "@/lib/ai/client";
+import { getAIClient, MODEL_FAST } from "@/lib/ai/client";
 import { FORM_ASSISTANT_SYSTEM_PROMPT } from "@/lib/ai/prompts/form-assistant";
 
 export async function POST(request: NextRequest) {
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Get history
-  let messages: { role: "user" | "assistant"; content: string }[] = [];
+  let messages: { role: "user" | "assistant" | "system"; content: string }[] = [];
   if (convId) {
     const { data: history } = await supabase
       .from("imm_ai_messages")
@@ -62,12 +62,15 @@ export async function POST(request: NextRequest) {
     ? `${FORM_ASSISTANT_SYSTEM_PROMPT}\n\nThe user is currently filling out: ${form_type}`
     : FORM_ASSISTANT_SYSTEM_PROMPT;
 
-  const client = getAnthropicClient();
-  const stream = await client.messages.stream({
-    model: MODEL_SMART,
+  const client = getAIClient();
+  const stream = await client.chat.completions.create({
+    model: MODEL_FAST,
     max_tokens: 2048,
-    system: systemPrompt,
-    messages,
+    stream: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages,
+    ],
   });
 
   let fullResponse = "";
@@ -75,11 +78,12 @@ export async function POST(request: NextRequest) {
 
   const readable = new ReadableStream({
     async start(controller) {
-      for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          fullResponse += event.delta.text;
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content;
+        if (text) {
+          fullResponse += text;
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ text: event.delta.text, conversation_id: convId })}\n\n`),
+            encoder.encode(`data: ${JSON.stringify({ text, conversation_id: convId })}\n\n`),
           );
         }
       }

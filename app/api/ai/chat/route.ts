@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropicClient, MODEL_FAST, MODEL_SMART } from "@/lib/ai/client";
+import { getAIClient, MODEL_FAST, MODEL_SMART } from "@/lib/ai/client";
 import { getChatSystemPromptWithContext } from "@/lib/ai/prompts/chatbot";
 
 export async function POST(request: NextRequest) {
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Get conversation history
-  let messages: { role: "user" | "assistant"; content: string }[] = [];
+  let messages: { role: "user" | "assistant" | "system"; content: string }[] = [];
   if (convId) {
     const { data: history } = await supabase
       .from("imm_ai_messages")
@@ -84,14 +84,17 @@ export async function POST(request: NextRequest) {
   const isComplex = complexKeywords.some((kw) => message.toLowerCase().includes(kw));
   const model = isComplex ? MODEL_SMART : MODEL_FAST;
 
-  const client = getAnthropicClient();
+  const client = getAIClient();
   const systemPrompt = getChatSystemPromptWithContext(caseContext);
 
-  const stream = await client.messages.stream({
+  const stream = await client.chat.completions.create({
     model,
     max_tokens: 2048,
-    system: systemPrompt,
-    messages,
+    stream: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages,
+    ],
   });
 
   // Collect full response for saving
@@ -100,9 +103,9 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
-      for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          const text = event.delta.text;
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content;
+        if (text) {
           fullResponse += text;
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ text, conversation_id: convId })}\n\n`),

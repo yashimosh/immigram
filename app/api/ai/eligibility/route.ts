@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getCompletion, MODEL_SMART } from "@/lib/ai/client";
+import { getCompletion, MODEL_FAST } from "@/lib/ai/client";
 import { ELIGIBILITY_SYSTEM_PROMPT } from "@/lib/ai/prompts/eligibility";
 
 export async function POST(request: NextRequest) {
@@ -38,7 +38,7 @@ Provide a thorough analysis with scored recommendations.`;
     const resultText = await getCompletion({
       systemPrompt: ELIGIBILITY_SYSTEM_PROMPT,
       userMessage,
-      model: MODEL_SMART,
+      model: MODEL_FAST,
       maxTokens: 4096,
       temperature: 0.3,
     });
