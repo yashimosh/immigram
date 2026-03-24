@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAIClient, MODEL_MULTILINGUAL, MODEL_FAST } from "@/lib/ai/client";
+import { getAIClient, MODEL_FAST } from "@/lib/ai/client";
 import { DOCUMENT_ANALYSIS_SYSTEM_PROMPT } from "@/lib/ai/prompts/document-analysis";
 
 export async function POST(request: NextRequest) {
@@ -82,9 +82,7 @@ export async function POST(request: NextRequest) {
       ];
     }
 
-    // Use multilingual model for document analysis (handles Persian/Arabic/Kurdish)
-    // Fall back to fast model for English-only docs
-    const model = isImage ? MODEL_MULTILINGUAL : MODEL_FAST;
+    const model = MODEL_FAST;
 
     const response = await client.chat.completions.create({
       model,

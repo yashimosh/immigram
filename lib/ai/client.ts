@@ -12,14 +12,14 @@ export function getAIClient(): OpenAI {
   return clientInstance;
 }
 
-/** Fast model — Groq free tier, good for chat and simple tasks. */
-export const MODEL_FAST = "llama-3.3-70b";
+/** Default model — local Ollama, good for chat and general tasks. */
+export const MODEL_FAST = "qwen3.5:4b";
 
 /** Smart model — Anthropic Claude, for complex legal/analysis. */
 export const MODEL_SMART = "claude-sonnet";
 
-/** Multilingual model — best for Persian/Kurdish/Arabic documents. */
-export const MODEL_MULTILINGUAL = "qwen3.5:4b";
+/** Embedding model — for RAG, semantic search, similarity. */
+export const MODEL_EMBEDDING = "qwen3-embedding";
 
 /** Default max tokens for completions. */
 export const DEFAULT_MAX_TOKENS = 4096;
