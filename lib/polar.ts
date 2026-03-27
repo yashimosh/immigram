@@ -36,7 +36,7 @@ export async function createCheckoutSession(params: {
   const product = POLAR_PRODUCTS[params.plan];
 
   const checkout = await polar.checkouts.create({
-    productId: product.productId,
+    products: [product.productId],
     customerEmail: params.userEmail,
     successUrl: params.successUrl,
   });
