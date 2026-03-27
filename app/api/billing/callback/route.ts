@@ -7,9 +7,13 @@ export async function POST(request: NextRequest) {
   const body = await request.text();
   const signature = request.headers.get("webhook-signature") ?? "";
 
+  // Convert Headers to plain object for validateEvent
+  const headersObj: Record<string, string> = {};
+  request.headers.forEach((value, key) => { headersObj[key] = value; });
+
   let event: ReturnType<typeof validateEvent>;
   try {
-    event = validateEvent(body, request.headers, process.env.POLAR_WEBHOOK_SECRET!);
+    event = validateEvent(body, headersObj, process.env.POLAR_WEBHOOK_SECRET!);
   } catch {
     return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
   }
