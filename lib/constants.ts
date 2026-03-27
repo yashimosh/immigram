@@ -139,8 +139,9 @@ export const APP_NAV_ITEMS = [
   { label: "Documents", href: "/documents", icon: "FileText" },
   { label: "Assessments", href: "/assessments", icon: "ClipboardCheck" },
   { label: "AI Chat", href: "/chat", icon: "MessageSquare" },
+  { label: "Clients", href: "/clients", icon: "UsersRound" },
   { label: "Community", href: "/community", icon: "Users" },
   { label: "Consultants", href: "/consultants", icon: "UserCheck" },
-  { label: "Tools", href: "/tools/cover-letter", icon: "Wand2" },
+  { label: "Tools", href: "/tools", icon: "Wand2" },
   { label: "Settings", href: "/settings", icon: "Settings" },
 ] as const;

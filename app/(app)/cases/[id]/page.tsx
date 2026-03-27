@@ -12,11 +12,11 @@ import {
   CheckCircle2,
   Circle,
   ArrowRight,
-  AlertCircle,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CaseBriefSection } from "./case-brief-section";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -32,7 +32,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [caseRes, milestonesRes, documentsRes] = await Promise.all([
+  const [caseRes, milestonesRes, documentsRes, briefsRes] = await Promise.all([
     supabase.from("imm_cases").select("*").eq("id", id).eq("user_id", user!.id).single(),
     supabase
       .from("imm_case_milestones")
@@ -45,6 +45,12 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       .eq("case_id", id)
       .eq("user_id", user!.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("imm_case_briefs")
+      .select("id, brief_type, content, created_at, metadata")
+      .eq("case_id", id)
+      .eq("user_id", user!.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!caseRes.data) notFound();
@@ -52,6 +58,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const caseData = caseRes.data as Case;
   const milestones = (milestonesRes.data ?? []) as CaseMilestone[];
   const documents = (documentsRes.data ?? []) as Document[];
+  const briefs = briefsRes.data ?? [];
 
   function getCountryName(code: string) {
     return SUPPORTED_COUNTRIES.find((c) => c.code === code)?.name ?? code;
@@ -189,7 +196,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       {/* AI Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link
-          href={`/api/ai/timeline?case_id=${caseData.id}`}
+          href={`/assessments/timeline?case_id=${caseData.id}`}
           className="glass rounded-xl p-5 hover:bg-white/[0.06] transition-colors group"
         >
           <div className="flex items-center gap-3">
@@ -207,7 +214,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         </Link>
 
         <Link
-          href={`/api/ai/prediction?case_id=${caseData.id}`}
+          href={`/assessments/prediction?case_id=${caseData.id}`}
           className="glass rounded-xl p-5 hover:bg-white/[0.06] transition-colors group"
         >
           <div className="flex items-center gap-3">
@@ -224,6 +231,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           </div>
         </Link>
       </div>
+
+      {/* Case Briefs */}
+      <CaseBriefSection caseId={caseData.id} initialBriefs={briefs} />
 
       {/* Milestones */}
       <div>
